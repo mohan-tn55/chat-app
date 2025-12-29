@@ -2,6 +2,7 @@ import { createContext, useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
+import { data } from "react-router-dom";
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL;
 axios.defaults.baseURL = backendUrl;
@@ -72,26 +73,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Connect socket function to handle socket connection and online users update
-const connectSocket = (user) => {
-  const userToUse = user || authUser;
-  if (!userToUse || socket?.connected) return;
-  
+const connectSocket = (userData) => {
+  if(!userData || socket?.connected) return;
   const newSocket = io(backendUrl, {
-    query: { userId: userToUse._id },
+    query: {
+      userId: userData._id,
+    }
   });
   newSocket.connect();
   setSocket(newSocket);
 
-  newSocket.on("getOnlineUsers", (userIds) => {
-    setOnlineUsers(userIds);
-  });
+  newSocket.on("getOnlineUsers", ()=>{
+    setOnlineUsers(data);
+  })
 };
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common["token"] = token;
     }
     checkAuth();
-  }, []);
+  },[]);
 
   const value = {
     axios,
