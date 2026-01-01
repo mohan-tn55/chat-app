@@ -1,19 +1,30 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import assets from "../assets/assets";
 import { AuthContext } from "../../context/AuthContext";
 
 const ProfilePage = () => {
   const { authUser, updateProfile } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [selectedImg, setSelectedImg] = useState(null);
-  const navigate = useNavigate();
-  const [name, setName] = useState(authUser.fullName);
-  const [bio, setBio] = useState(authUser.bio);
+  // Fixed: Use optional chaining and default values to prevent crash on refresh
+  const [name, setName] = useState(authUser?.fullName || "");
+  const [bio, setBio] = useState(authUser?.bio || "");
+
+  // Fixed: Update local state once authUser is loaded from the backend
+  useEffect(() => {
+    if (authUser) {
+      setName(authUser.fullName);
+      setBio(authUser.bio);
+    }
+  }, [authUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!selectedImg) {
+      // Fixed: Only send text fields if no image is selected
       await updateProfile({ fullName: name, bio });
       navigate('/');
       return;
@@ -23,10 +34,10 @@ const ProfilePage = () => {
     reader.readAsDataURL(selectedImg);
     reader.onload = async () => {
       const base64Image = reader.result;
-      await updateProfile({ profilePic: base64Image, fullName: name, bio});
+      // Fixed: Send everything including the new profilePic
+      await updateProfile({ profilePic: base64Image, fullName: name, bio });
       navigate('/');
-    }
-
+    };
   };
 
   return (
@@ -52,10 +63,10 @@ const ProfilePage = () => {
               src={
                 selectedImg
                   ? URL.createObjectURL(selectedImg)
-                  : assets.avatar_icon
+                  : (authUser?.profilePic || assets.avatar_icon) // Fixed: Default to existing profile pic
               }
               alt=""
-              className={`w-12 h-12 ${selectedImg && "rounded-full"}`}
+              className={`w-12 h-12 rounded-full object-cover`} // Fixed: Always use rounded for consistency
             />
             Upload Profile Image
           </label>
@@ -65,26 +76,30 @@ const ProfilePage = () => {
             type="text"
             required
             placeholder="Your Name"
-            className="p-2 border border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="p-2 border border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 bg-transparent"
           />
           <textarea
             onChange={(e) => setBio(e.target.value)}
             value={bio}
             placeholder="Write Profile Bio..."
             required
-            className="p-2 border border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="p-2 border border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 bg-transparent"
             rows={4}
           ></textarea>
           <button
             type="submit"
-            className="bg-linear-to-r from-purple-400 to-violet-600 text-white rounded-full text-lg cursor-pointer"
+            className="bg-gradient-to-r from-purple-400 to-violet-600 text-white py-2 rounded-full text-lg cursor-pointer"
           >
             Save
           </button>
         </form>
         <img
-          className={`max-w-44 aspect-square rounded-full mx-10 max-sm:mt-10 ${selectedImg && "rounded-full"}`}
-          src={authUser?.profilePic || assets.logo_icon}
+          className="max-w-44 aspect-square rounded-full mx-10 max-sm:mt-10 object-cover border-2 border-gray-500"
+          src={
+            selectedImg 
+              ? URL.createObjectURL(selectedImg) 
+              : (authUser?.profilePic || assets.logo_icon) // Fixed: Shows current pic or new preview
+          }
           alt=""
         />
       </div>

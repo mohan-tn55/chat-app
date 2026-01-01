@@ -9,12 +9,14 @@ export const signUp = async (req, res) => {
 
   try {
     if (!fullName || !email || !password || !bio) {
-      return res.json({ success: false, message: "Missing details" });
+      return res.status(400).json({ success: false, message: "Missing details" });
     }
+    
     const user = await User.findOne({ email });
     if (user) {
-      return res.json({ success: false, message: "User already exists" });
+      return res.status(400).json({ success: false, message: "User already exists" });
     }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -25,18 +27,21 @@ export const signUp = async (req, res) => {
       bio,
     });
 
+    // Token generation helper
     const token = generateToken(newUser._id);
 
-    res.json({
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
+
+    res.status(201).json({
       success: true,
-      userData: newUser,
+      userData: userResponse,
       token,
       message: "User created successfully",
     });
   } catch (error) {
-    console.log(error.message);
-
-    res.json({ success: false, message: error.message });
+    console.error("SignUp Error:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
@@ -45,57 +50,80 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const userData = await User.findOne({ email });
+    
     if (!userData) {
-      return res.json({ success: false, message: "User not found" });
+      return res.status(400).json({ success: false, message: "User not found" });
     }
+    
     const isPasswordCorrect = await bcrypt.compare(password, userData.password);
     if (!isPasswordCorrect) {
-      return res.json({ success: false, message: "Invalid credentials" });
+      return res.status(400).json({ success: false, message: "Invalid credentials" });
     }
+    
     const token = generateToken(userData._id);
+    
+    const userResponse = userData.toObject();
+    delete userResponse.password;
+
     res.json({
       success: true,
-      userData: userData,
+      userData: userResponse,
       token,
       message: "Login successful",
     });
   } catch (error) {
-    console.log(error.message);
-    res.json({ success: false, message: error.message });
+    console.error("Login Error:", error.message);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
 // Controller to check authentication status
 export const checkAuth = (req, res) => {
-  res.json({ success: true, user: req.user });
+  // req.user is populated by the protectRoute middleware
+  res.status(200).json({ success: true, user: req.user });
 };
 
 // Controller to update user profile details
 export const updateProfile = async (req, res) => {
   try {
     const { profilePic, bio, fullName } = req.body;
-
     const userId = req.user._id;
-    let updatedUser;
 
-    if (!profilePic) {
-      await User.findByIdAndUpdate(userId, { bio, fullName }, { new: true });
-    } else {
-      const upload = await cloudinary.uploader.upload(profilePic);
+    // Build update object dynamically to avoid overwriting with null/undefined
+    let updateData = {};
+    if (bio !== undefined) updateData.bio = bio;
+    if (fullName !== undefined) updateData.fullName = fullName;
 
-      updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { profilePic: upload.secure_url, bio, fullName },
-        { new: true }
-      );
+    // Handle Profile Picture upload to Cloudinary
+    if (profilePic && profilePic.startsWith("data:image")) {
+      try {
+        const uploadResponse = await cloudinary.uploader.upload(profilePic, {
+            folder: "chat_app_profiles"
+        });
+        updateData.profilePic = uploadResponse.secure_url;
+      } catch (cloudErr) {
+        console.error("Cloudinary Upload Error:", cloudErr.message);
+        return res.status(400).json({ success: false, message: "Image upload failed" });
+      }
     }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId, 
+      { $set: updateData }, 
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
     res.json({
       success: true,
       user: updatedUser,
       message: "Profile updated successfully",
     });
   } catch (error) {
-    console.log(error.message);
-    res.json({ success: false, message: error.message });
+    console.error("UpdateProfile Error:", error.message);
+    res.status(500).json({ success: false, message: "Failed to update profile" });
   }
 };
