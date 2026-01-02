@@ -22,7 +22,7 @@ const App = () => {
 
   return (
     // Fixed the path for bgImage. Use relative paths if assets are in public or src
-    <div className="bg-[url('/src/assets/bgImage.svg')] bg-cover bg-center min-h-screen">
+    <div className="bg-[url('/bgImage.svg')] bg-cover bg-center min-h-screen">
       <Toaster position="top-center" reverseOrder={false} />
       
       <Routes>
