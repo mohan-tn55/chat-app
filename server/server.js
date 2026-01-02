@@ -5,7 +5,7 @@ import http from "http";
 import { Server } from "socket.io";
 import { connectDB } from "./lib/db.js";
 
-// // 1. IMPORTANT: Define and export these BEFORE importing routes to prevent circular dependency crashes
+// 1. DEFINE AND EXPORT FIRST (Prevents circular dependency crash)
 const app = express();
 const server = http.createServer(app);
 
@@ -15,7 +15,7 @@ export const io = new Server(server, {
 
 export const userSocketMap = {}; 
 
-// // 2. IMPORTANT: Routes are imported AFTER exports so messageController can access io and userSocketMap
+// 2. NOW IMPORT ROUTES (They can now safely access exports above)
 import userRouter from "./routes/userRoutes.js";
 import messageRouter from "./routes/messageRoutes.js";
 
@@ -34,22 +34,22 @@ io.on("connection", (socket) => {
   });
 });
 
-// // 3. Middleware configuration
+// 3. Middleware
 app.use(express.json({ limit: "10mb" })); 
 app.use(cors());
 
-// // 4. API Route definitions
+// 4. API Routes
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 
-// // 5. IMPORTANT: Database connection must be called for Vercel functions to work
-connectDB();
+// 5. Database Connection (Non-blocking for Vercel)
+connectDB().catch(err => console.error("MongoDB Error:", err));
 
-// // 6. IMPORTANT: server.listen only runs in development; Vercel handles the port in production
+// 6. Local Server Start
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => console.log(`Server running on: ${PORT}`));
 }
 
-// // 7. CRITICAL FOR VERCEL: You must export app as the default export
+// 7. Vercel Export
 export default app;

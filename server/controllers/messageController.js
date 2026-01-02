@@ -7,11 +7,8 @@ import { io, userSocketMap } from "../server.js";
 export const getUsersForSidebar = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    // Find all users except yourself
     const filteredUsers = await User.find({ _id: { $ne: userId } }).select("-password");
 
-    // Calculate unseen message counts for each user
     const unseenMessages = {};
     const promises = filteredUsers.map(async (user) => {
       const count = await Message.countDocuments({
@@ -43,15 +40,13 @@ export const getMessages = async (req, res) => {
     const { id: selectedUserId } = req.params;
     const myId = req.user._id;
 
-    // Fetch messages between the two users
     const messages = await Message.find({
       $or: [
         { senderId: myId, receiverId: selectedUserId },
         { senderId: selectedUserId, receiverId: myId },
       ],
-    }).sort({ createdAt: 1 }); // Ensures messages are in chronological order
+    }).sort({ createdAt: 1 });
 
-    // Mark these messages as seen since the user has opened the chat
     await Message.updateMany(
       { senderId: selectedUserId, receiverId: myId, seen: false },
       { seen: true }
@@ -72,14 +67,12 @@ export const sendMessage = async (req, res) => {
     const senderId = req.user._id;
 
     let imageUrl = null;
-
-    // Only attempt Cloudinary upload if an image string actually exists
     if (image && image.trim() !== "") {
       try {
         const uploadResponse = await cloudinary.uploader.upload(image);
         imageUrl = uploadResponse.secure_url;
       } catch (cloudinaryErr) {
-        console.error("Cloudinary Upload Error:", cloudinaryErr.message);
+        console.error("Cloudinary Error:", cloudinaryErr.message);
         return res.status(400).json({ success: false, message: "Image upload failed" });
       }
     }
@@ -94,13 +87,11 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    // Real-time delivery via Socket.io
     const receiverSocketId = userSocketMap[receiverId];
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newMessage", newMessage);
     }
 
-    // Return 'message' to match the frontend 'ChatContext' expectations
     res.status(201).json({ success: true, message: newMessage });
   } catch (error) {
     console.error("Error in sendMessage:", error.message);
@@ -112,16 +103,11 @@ export const sendMessage = async (req, res) => {
 export const markMessageAsSeen = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedMessage = await Message.findByIdAndUpdate(
-      id, 
-      { seen: true }, 
-      { new: true }
-    );
+    const updatedMessage = await Message.findByIdAndUpdate(id, { seen: true }, { new: true });
     
     if (!updatedMessage) {
       return res.status(404).json({ success: false, message: "Message not found" });
     }
-
     res.status(200).json({ success: true, message: "Message marked as seen" });
   } catch (error) {
     console.error("Error in markMessageAsSeen:", error.message);
